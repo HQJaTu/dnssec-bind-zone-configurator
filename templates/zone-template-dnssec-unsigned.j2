@@ -1,0 +1,8 @@
+zone "{{ zone }}" {
+        type master;
+        file "data/{{ zone_file }}";
+
+	also-notify {
+		{{ dns_ip }} port {{ dns_port }};
+	};
+};
