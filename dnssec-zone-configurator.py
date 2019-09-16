@@ -90,10 +90,13 @@ def create_zone_files(j2_env, zones, master_ip_addr):
         public_filename: str = "%s/%s.conf" % (PUBLIC_DIR, zone)
         if zone_item[0] and not master_ip_addr:
             print("DNSSEC zone %s, files %s and %s:" % (zone, public_filename, internal_filename))
-            create_zone_file(dnssec_unsigned_template, zone, internal_filename, zone_file, '')
+            create_zone_file(dnssec_unsigned_template, zone, internal_filename, zone_file, master_ip)
             create_zone_file(dnssec_signed_template, zone, public_filename, zone_file, master_ip)
         else:
-            print("Non-DNSSEC zone %s, file %s:" % (zone, public_filename))
+            if master_ip_addr:
+                print("DNSSEC zone %s, file %s:" % (zone, public_filename))
+            else:
+                print("Non-DNSSEC zone %s, file %s:" % (zone, public_filename))
             create_zone_file(unsigned_template, zone, public_filename, zone_file, master_ip)
 
 
