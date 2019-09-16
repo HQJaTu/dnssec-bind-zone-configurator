@@ -12,7 +12,7 @@ APP_DIRS = AppDirs("dnssec-bind-zone-configurator")
 
 # Sample from: https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(name='dnssec-bind-zone-configurator',
-      version='0.0.1',
+      version='0.0.2',
       description='Utility to generate BIND DNS zone configuration files for OpenDNSSEC',
       author='Jari Turkia',
       author_email='jatu@hqcodeshop.fi',
@@ -34,7 +34,7 @@ setup(name='dnssec-bind-zone-configurator',
           'Programming Language :: Python :: 3.7',
       ],
       python_requires='>=3.5, <4',
-      install_requires=['jinja2', 'appdirs'],
+      install_requires=['jinja2', 'appdirs', 'pyaml'],
       scripts=['dnssec-zone-configurator.py'],
       include_package_data=True,
       data_files=[

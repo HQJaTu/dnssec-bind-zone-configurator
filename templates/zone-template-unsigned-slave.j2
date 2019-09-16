@@ -1,0 +1,8 @@
+zone "{{ zone }}" {
+        type slave;
+        file "data/{{ zone_file }}";
+
+        masters {
+            {{ dns_ip }};
+        };
+};
