@@ -2,7 +2,7 @@
 #       Any manual changes made might get overwritten.
 zone "{{ zone }}" {
         type slave;
-        file "data/{{ zone_file }}";
+        file "slaves/{{ zone_file }}";
 
         masters {
             {{ dns_ip }};
