@@ -1,0 +1,6 @@
+{% if key_conf_name %}
+include "{{ bind_dir }}/{{ key_conf_name }}";"
+{% endif %}
+{% for zone_data in zones %}
+include "{{ bind_dir }}/{{ zone_data["directory_name"] }}/{{ zone_data["zone"] }}.conf";
+{% endfor %}
