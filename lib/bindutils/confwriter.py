@@ -29,7 +29,7 @@ class BindConfigWriter:
         self.BIND_CONF_FILENAME = 'dnssec.conf'
         self.BIND_KEY_CONF_FILENAME = 'dnssec-key.conf'
         self.DNS_IP = "::1"
-        self.DNS_PORT = 54
+        self.ODS_SIGNER_DNS_PORT = 54
         self.OUT_KEY = 'opendnssec-out'
 
         # Initialize Jinja2
@@ -169,7 +169,7 @@ class BindConfigWriter:
             uid = pwd.getpwnam(self.OWNER_NAME).pw_uid
             gid = grp.getgrnam(self.GROUP_NAME).gr_gid
         conf_file = template.render(zone=zone, zone_file=zone_file,
-                                    dns_ip=master_ip, dns_port=self.DNS_PORT,
+                                    dns_ip=master_ip, dns_port=self.ODS_SIGNER_DNS_PORT,
                                     out_key=self.OUT_KEY)
     
         with open(conf_filename, "w") as zone_handle:
