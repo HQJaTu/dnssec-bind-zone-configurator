@@ -1,10 +1,10 @@
 # NOTE: This file is created from a template.
 #       Any manual changes made might get overwritten.
 zone "{{ zone }}" {
-        type slave;
-        file "slaves/{{ zone_file }}";
+    type slave;
+    file "slaves/{{ zone_file }}";
 
-        masters {
-            {{ dns_ip }};
-        };
+    masters {
+        {{ dns_ip }};
+    };
 };

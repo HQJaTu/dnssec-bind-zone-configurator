@@ -1,0 +1,24 @@
+include "{{ bind_dir }}/{{ key_conf_name }}";"
+include "{{ bind_dir }}/{{ key_out_conf_name }}";"
+
+acl unsigned {
+    key {{ out_key }};
+};
+
+view unsigned {
+    match-clients {
+        unsigned;
+    };
+
+{% for zone_data in zones_private %}
+    include "{{ bind_dir }}/{{ zone_data["directory_name"] }}/{{ zone_data["zone"] }}.conf";
+{% endfor %}
+};
+
+view default {
+    match-clients { any; };
+
+{% for zone_data in zones %}
+    include "{{ bind_dir }}/{{ zone_data["directory_name"] }}/{{ zone_data["zone"] }}.conf";
+{% endfor %}
+};

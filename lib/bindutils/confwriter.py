@@ -20,12 +20,18 @@ class BindConfigWriter:
     }
     DO_CHOWN = None
 
+    DEFAULT_BIND_KEY_IN_CONF_FILENAME = 'dnssec-reader-key.conf'
+    DEFAULT_BIND_KEY_OUT_CONF_FILENAME = 'dnssec-master-key.conf'
+    DEFAULT_SIGNERD_IP = "::1"
+    DEFAULT_SIGNERD_PORT = 54
+
     def __init__(self, BindDir=None, DestDir=None, MasterForSlave=None):
         self.master_ip = MasterForSlave
 
         self.OWNER_NAME = 'root'
         self.GROUP_NAME = 'named'
-        self.template_config = 'bind-include.j2'
+        self.template_config_plain = 'bind-include-plain-view.j2'
+        self.template_config_dual_view = 'bind-include-internal-view.j2'
         self.template_config_key = 'bind-key-include.j2'
         self.TEMPLATE_DNSSEC_UNSIGNED = 'zone-template-dnssec-unsigned.j2'
         self.TEMPLATE_DNSSEC_SIGNED = 'zone-template-dnssec-signed.j2'
@@ -37,9 +43,6 @@ class BindConfigWriter:
         self.INTERNAL_DIR = 'zones.internal'
         self.PUBLIC_DIR = 'zones.public'
         self.BIND_CONF_FILENAME = 'dnssec.conf'
-        self.BIND_KEY_CONF_FILENAME = 'dnssec-key.conf'
-        self.DNS_IP = "::1"
-        self.ODS_SIGNER_DNS_PORT = 54
         self.OUT_KEY = 'opendnssec-out'
 
         # Initialize Jinja2
@@ -50,22 +53,30 @@ class BindConfigWriter:
         j2_template_loader = FileSystemLoader(searchpath=j2_template_directories)
         self.j2_env = Environment(loader=j2_template_loader, trim_blocks=True)
 
-    def create_dnssec_bind_conf(self, zones):
+    def create_dnssec_bind_conf(self, zones, out_key_file, out_key_name):
+        """
+        Create the "main" include to manage all DNS zones
+        :param zones: dict of zones to create includes for
+        :param out_key_file: Do configuration for additional key.
+        If exists, indicates that this DNS is serving zones for OpenDNSSEC signerd.
+        :param out_key_name: Key name to use in Bind configuration
+        :return:
+        """
         if BindConfigWriter.DO_CHOWN:
             uid = pwd.getpwnam(self.OWNER_NAME).pw_uid
             gid = grp.getgrnam(self.GROUP_NAME).gr_gid
 
         if not self.destination_dir:
-            internal_dir = self.INTERNAL_DIR
-            public_dir = self.PUBLIC_DIR
             bind_conf_file = self.BIND_CONF_FILENAME
         else:
-            internal_dir = '%s/%s' % (self.destination_dir, self.INTERNAL_DIR)
-            public_dir = '%s/%s' % (self.destination_dir, self.PUBLIC_DIR)
             bind_conf_file = '%s/%s' % (self.destination_dir, self.BIND_CONF_FILENAME)
 
-        template = self.j2_env.get_template(self.template_config)
+        if out_key_file:
+            template = self.j2_env.get_template(self.template_config_dual_view)
+        else:
+            template = self.j2_env.get_template(self.template_config_plain)
         zone_info = []
+        zone_info_private = []
         for zone in zones:
             zone_item = zones[zone]
             this_zone_info = {
@@ -78,8 +89,12 @@ class BindConfigWriter:
                     "zone": zone,
                     "directory_name": self.INTERNAL_DIR
                 }
-                zone_info.append(this_zone_info)
-        conf_data = template.render(bind_dir=self.bind_dir, zones=zone_info, key_conf_name='dnssec-key.conf')
+                zone_info_private.append(this_zone_info)
+        conf_data = template.render(bind_dir=self.bind_dir,
+                                    zones=zone_info, zones_private=zone_info_private,
+                                    key_conf_name='dnssec-reader-key.conf',
+                                    key_out_conf_name='dnssec-master-key.conf',
+                                    out_key=out_key_name)
 
         print("Writing %s:" % bind_conf_file)
         with open(bind_conf_file, "w") as conf_handle:
@@ -90,15 +105,15 @@ class BindConfigWriter:
 
         return bind_conf_file
 
-    def create_dnssec_bind_key_conf(self, key_file, key_name):
+    def create_dnssec_bind_key_conf(self, key_file, key_name, conf_out_filename=DEFAULT_BIND_KEY_IN_CONF_FILENAME):
         if BindConfigWriter.DO_CHOWN:
             uid = pwd.getpwnam(self.OWNER_NAME).pw_uid
             gid = grp.getgrnam(self.GROUP_NAME).gr_gid
 
         if not self.destination_dir:
-            bind_conf_file = self.BIND_KEY_CONF_FILENAME
+            bind_conf_file = conf_out_filename
         else:
-            bind_conf_file = '%s/%s' % (self.destination_dir, self.BIND_KEY_CONF_FILENAME)
+            bind_conf_file = '%s/%s' % (self.destination_dir, conf_out_filename)
 
         # Read given TSIG private key file and parse needed information for Bind configuration.
         key_algorithm = None
@@ -149,7 +164,7 @@ class BindConfigWriter:
             public_dir = '%s/%s' % (self.destination_dir, self.PUBLIC_DIR)
             bind_conf_file = '%s/%s' % (self.destination_dir, self.BIND_CONF_FILENAME)
 
-        template = self.j2_env.get_template(self.template_config)
+        template = self.j2_env.get_template(self.template_config_plain)
         templ_zones = []
         for zone in zones:
             zone_item = zones[zone]
@@ -169,7 +184,15 @@ class BindConfigWriter:
 
         return bind_conf_file
 
-    def create_zone_files(self, zones, master_ip_addr, key_name=None):
+    def create_zone_files(self, zones, serve_signerd_out, signerd_master_ip, key_name):
+        """
+        Create Bind configuration files for all zones
+        :param zones: dict of zones to do
+        :param serve_signerd_out: Create internal zones for serving zones from this Bind
+        :param signerd_master_ip: IP-address of OpenDNSSEC signerd master
+        :param key_name: TSIG key name in Bind configuration to read data from OpenDNSSEC signerd
+        :return:
+        """
         if BindConfigWriter.DO_CHOWN:
             uid = pwd.getpwnam(self.OWNER_NAME).pw_uid
             gid = grp.getgrnam(self.GROUP_NAME).gr_gid
@@ -179,27 +202,29 @@ class BindConfigWriter:
         else:
             internal_dir = "%s/%s" % (self.destination_dir, self.INTERNAL_DIR)
             public_dir: str = "%s/%s" % (self.destination_dir, self.PUBLIC_DIR)
-        if not master_ip_addr:
+        if not serve_signerd_out:
             if not os.path.isdir(internal_dir):
                 os.mkdir(internal_dir, 0o750)
         if not os.path.isdir(public_dir):
             os.mkdir(public_dir, 0o750)
         if BindConfigWriter.DO_CHOWN:
-            if not master_ip_addr:
+            if not serve_signerd_out:
                 os.chown(internal_dir, uid, gid)
             os.chown(public_dir, uid, gid)
 
-        if master_ip_addr:
+        if serve_signerd_out:
             unsigned_template = self.j2_env.get_template(self.TEMPLATE_UNSIGNED_SLAVE)
+            dnssec_unsigned_template = None
+            dnssec_signed_template = None
         else:
             dnssec_unsigned_template = self.j2_env.get_template(self.TEMPLATE_DNSSEC_UNSIGNED)
             dnssec_signed_template = self.j2_env.get_template(self.TEMPLATE_DNSSEC_SIGNED)
             unsigned_template = self.j2_env.get_template(self.TEMPLATE_UNSIGNED_MASTER)
 
-        if master_ip_addr:
-            master_ip = master_ip_addr
+        if signerd_master_ip:
+            master_ip = signerd_master_ip
         else:
-            master_ip = self.DNS_IP
+            master_ip = BindConfigWriter.DEFAULT_SIGNERD_IP
         for zone in zones:
             zone_item = zones[zone]
             zone_file = zone_item[1]
@@ -209,24 +234,27 @@ class BindConfigWriter:
             else:
                 internal_filename = "%s/%s/%s.conf" % (self.destination_dir, self.INTERNAL_DIR, zone)
                 public_filename: str = "%s/%s/%s.conf" % (self.destination_dir, self.PUBLIC_DIR, zone)
-            if zone_item[0] and not master_ip_addr:
+            if zone_item[0] and not serve_signerd_out:
                 print("DNSSEC zone %s, files %s and %s:" % (zone, public_filename, internal_filename))
-                self.create_zone_file(dnssec_unsigned_template, zone, internal_filename, zone_file, master_ip)
-                self.create_zone_file(dnssec_signed_template, zone, public_filename, zone_file, master_ip)
+                self.create_zone_file(dnssec_unsigned_template, zone, internal_filename, zone_file,
+                                      master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
+                self.create_zone_file(dnssec_signed_template, zone, public_filename, zone_file,
+                                      master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
             else:
-                if master_ip_addr:
+                if serve_signerd_out:
                     print("DNSSEC zone %s, file %s:" % (zone, public_filename))
                 else:
                     print("Non-DNSSEC zone %s, file %s:" % (zone, public_filename))
-                self.create_zone_file(unsigned_template, zone, public_filename, zone_file, master_ip)
+                self.create_zone_file(unsigned_template, zone, public_filename, zone_file,
+                                      master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
 
-    def create_zone_file(self, template, zone, conf_filename, zone_file, master_ip):
+    def create_zone_file(self, template, zone, conf_filename, zone_file, master_ip, master_port, key_name):
         if BindConfigWriter.DO_CHOWN:
             uid = pwd.getpwnam(self.OWNER_NAME).pw_uid
             gid = grp.getgrnam(self.GROUP_NAME).gr_gid
         conf_file = template.render(zone=zone, zone_file=zone_file,
-                                    dns_ip=master_ip, dns_port=self.ODS_SIGNER_DNS_PORT,
-                                    out_key=self.OUT_KEY)
+                                    dns_ip=master_ip, dns_port=master_port,
+                                    signerd_in_key=key_name)
 
         with open(conf_filename, "w") as zone_handle:
             print(conf_file, file=zone_handle)
