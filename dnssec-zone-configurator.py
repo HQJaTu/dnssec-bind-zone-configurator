@@ -8,6 +8,7 @@ from lib.bindutils import *
 
 
 def main():
+    orig_args = args_as_string()
     parser = argparse.ArgumentParser(description='OpenDNSSEC BIND zone configurator')
     parser.add_argument('--bind-dir', metavar='BIND-DIRECTORY', default='/etc/bind',
                         help='Destination directory to write to')
@@ -29,7 +30,7 @@ def main():
                         help='TSIG key name for OpenDNSSEC signerd to read unsigned zones from this DNS')
     args = parser.parse_args()
 
-    bind_writer = BindConfigWriter(BindDir=args.bind_dir, DestDir=args.dest_dir)
+    bind_writer = BindConfigWriter(BindDir=args.bind_dir, DestDir=args.dest_dir, OrigArgv=orig_args)
     zones = ConfigReader.read_zone_list(args.zone_configuration, False)
     bind_writer.create_dnssec_bind_conf(zones, args.tsig_out_key_file, args.tsig_out_key_name)
     if args.tsig_out_key_file:

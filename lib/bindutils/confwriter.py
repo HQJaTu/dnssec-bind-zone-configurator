@@ -25,8 +25,9 @@ class BindConfigWriter:
     DEFAULT_SIGNERD_IP = "::1"
     DEFAULT_SIGNERD_PORT = 54
 
-    def __init__(self, BindDir=None, DestDir=None, MasterForSlave=None):
+    def __init__(self, BindDir=None, DestDir=None, MasterForSlave=None, OrigArgv=None):
         self.master_ip = MasterForSlave
+        self.orig_argv = OrigArgv
 
         self.OWNER_NAME = 'root'
         self.GROUP_NAME = 'named'
@@ -92,6 +93,7 @@ class BindConfigWriter:
                 zone_info_private.append(this_zone_info)
         conf_data = template.render(bind_dir=self.bind_dir,
                                     zones=zone_info, zones_private=zone_info_private,
+                                    orig_argv=self.orig_argv,
                                     key_conf_name='dnssec-reader-key.conf',
                                     key_out_conf_name='dnssec-master-key.conf',
                                     out_key=out_key_name)
@@ -173,7 +175,7 @@ class BindConfigWriter:
                 "directory_name": self.PUBLIC_DIR
             }
             templ_zones.append(templ_zone)
-        conf_data = template.render(bind_dir=self.bind_dir, zones=templ_zones)
+        conf_data = template.render(bind_dir=self.bind_dir, zones=templ_zones, orig_argv=self.orig_argv)
 
         print("Writing %s:" % bind_conf_file)
         with open(bind_conf_file, "w") as conf_handle:

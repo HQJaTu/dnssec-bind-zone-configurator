@@ -8,6 +8,7 @@ from lib.bindutils import *
 
 
 def main():
+    orig_args = args_as_string()
     parser = argparse.ArgumentParser(description='OpenDNSSEC BIND slave zone configurator')
     parser.add_argument('--bind-dir', metavar='BIND-DIRECTORY', default='/etc/bind',
                         help='Destination directory to write to')
@@ -19,7 +20,7 @@ def main():
                         help='IP-address of the master DNS of this slave DNS')
     args = parser.parse_args()
 
-    bind_writer = BindConfigWriter(BindDir=args.bind_dir, DestDir=args.dest_dir)
+    bind_writer = BindConfigWriter(BindDir=args.bind_dir, DestDir=args.dest_dir, OrigArgv=orig_args)
     zones = ConfigReader.read_zone_list(args.zone_configuration, args.master_ip)
     bind_writer.create_slave_bind_conf(zones)
     bind_writer.create_zone_files(zones, True, args.master_ip, None)
