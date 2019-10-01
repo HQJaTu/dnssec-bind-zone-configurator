@@ -23,7 +23,7 @@ def main():
     bind_writer = BindConfigWriter(BindDir=args.bind_dir, DestDir=args.dest_dir, OrigArgv=orig_args)
     zones = ConfigReader.read_zone_list(args.zone_configuration, args.master_ip)
     bind_writer.create_slave_bind_conf(zones)
-    bind_writer.create_zone_files(zones, True, args.master_ip, None)
+    bind_writer.create_zone_files_for_slave(zones, args.master_ip)
 
     print("All done.")
 

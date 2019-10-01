@@ -191,9 +191,7 @@ class BindConfigWriter:
         Create Bind configuration files for all zones
         :param zones: dict of zones to do
         :param dont_serve_signerd_out: Create internal zones for serving zones from this Bind
-        This is not applicable for slave zones.
-        :param master_ip_in: IP-address of OpenDNSSEC signerd master OR
-        master DNS of a slave.
+        :param master_ip_in: IP-address of OpenDNSSEC signerd master
         :param key_name: TSIG key name in Bind configuration to read data from OpenDNSSEC signerd
         :return:
         """
@@ -216,14 +214,9 @@ class BindConfigWriter:
                 os.chown(internal_dir, uid, gid)
             os.chown(public_dir, uid, gid)
 
-        if dont_serve_signerd_out:
-            unsigned_template = self.j2_env.get_template(self.TEMPLATE_UNSIGNED_SLAVE)
-            dnssec_unsigned_template = None
-            dnssec_signed_template = None
-        else:
-            dnssec_unsigned_template = self.j2_env.get_template(self.TEMPLATE_DNSSEC_UNSIGNED)
-            dnssec_signed_template = self.j2_env.get_template(self.TEMPLATE_DNSSEC_SIGNED)
-            unsigned_template = self.j2_env.get_template(self.TEMPLATE_UNSIGNED_MASTER)
+        unsigned_template = self.j2_env.get_template(self.TEMPLATE_UNSIGNED_MASTER)
+        dnssec_unsigned_template = self.j2_env.get_template(self.TEMPLATE_DNSSEC_UNSIGNED)
+        dnssec_signed_template = self.j2_env.get_template(self.TEMPLATE_DNSSEC_SIGNED)
 
         if master_ip_in:
             master_ip = master_ip_in
@@ -238,19 +231,59 @@ class BindConfigWriter:
             else:
                 internal_filename = "%s/%s/%s.conf" % (self.destination_dir, self.INTERNAL_DIR, zone)
                 public_filename: str = "%s/%s/%s.conf" % (self.destination_dir, self.PUBLIC_DIR, zone)
-            if zone_item[0] and not dont_serve_signerd_out:
-                print("DNSSEC zone %s, files %s and %s:" % (zone, public_filename, internal_filename))
-                self.create_zone_file(dnssec_unsigned_template, zone, internal_filename, zone_file,
-                                      master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
-                self.create_zone_file(dnssec_signed_template, zone, public_filename, zone_file,
-                                      master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
-            else:
-                if dont_serve_signerd_out:
-                    print("DNSSEC zone %s, file %s:" % (zone, public_filename))
+            if zone_item[0]:
+                # DNSSEC zone here
+                if not dont_serve_signerd_out:
+                    # Create two Bind zones for given input zone.
+                    # One to serve unsigned master zone to ODS signerd and another signed zone to public
+                    print("DNSSEC zone %s, files %s and %s:" % (zone, public_filename, internal_filename))
+                    self.create_zone_file(dnssec_unsigned_template, zone, internal_filename, zone_file,
+                                          master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
+                    self.create_zone_file(dnssec_signed_template, zone, public_filename, zone_file,
+                                          master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
                 else:
-                    print("Non-DNSSEC zone %s, file %s:" % (zone, public_filename))
+                    # Create only one Bind zone
+                    print("DNSSEC zone %s, file %s:" % (zone, public_filename))
+                    self.create_zone_file(dnssec_signed_template, zone, public_filename, zone_file,
+                                          master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
+            else:
+                # No DNSSEC, create a master or slave zone depending which one is requested
+                print("Non-DNSSEC zone %s, file %s:" % (zone, public_filename))
                 self.create_zone_file(unsigned_template, zone, public_filename, zone_file,
                                       master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, key_name)
+
+    def create_zone_files_for_slave(self, zones, master_ip):
+        """
+        Create Bind configuration files for all zones
+        :param zones: dict of zones to do
+        :param master_ip_in: IP-address of master DNS of a slave.
+        :return:
+        """
+        if BindConfigWriter.DO_CHOWN:
+            uid = pwd.getpwnam(self.OWNER_NAME).pw_uid
+            gid = grp.getgrnam(self.GROUP_NAME).gr_gid
+        if not self.destination_dir:
+            public_dir = self.PUBLIC_DIR
+        else:
+            public_dir: str = "%s/%s" % (self.destination_dir, self.PUBLIC_DIR)
+        if not os.path.isdir(public_dir):
+            os.mkdir(public_dir, 0o750)
+        if BindConfigWriter.DO_CHOWN:
+            os.chown(public_dir, uid, gid)
+
+        unsigned_template = self.j2_env.get_template(self.TEMPLATE_UNSIGNED_SLAVE)
+
+        for zone in zones:
+            zone_item = zones[zone]
+            zone_file = zone_item[1]
+            if not self.destination_dir:
+                public_filename: str = "%s/%s.conf" % (self.PUBLIC_DIR, zone)
+            else:
+                public_filename: str = "%s/%s/%s.conf" % (self.destination_dir, self.PUBLIC_DIR, zone)
+            # No DNSSEC, create a master or slave zone depending which one is requested
+            print("Slave zone %s, file %s:" % (zone, public_filename))
+            self.create_zone_file(unsigned_template, zone, public_filename, zone_file,
+                                  master_ip, BindConfigWriter.DEFAULT_SIGNERD_PORT, None)
 
     def create_zone_file(self, template, zone, conf_filename, zone_file, master_ip, master_port, key_name):
         if BindConfigWriter.DO_CHOWN:
