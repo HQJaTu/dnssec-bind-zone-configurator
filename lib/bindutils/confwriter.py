@@ -25,7 +25,7 @@ class BindConfigWriter:
     DEFAULT_SIGNERD_IP = "::1"
     DEFAULT_SIGNERD_PORT = 54
 
-    def __init__(self, BindDir=None, DestDir=None, MasterForSlave=None, OrigArgv=None):
+    def __init__(self, BindDir=None, DestDir=None, MainConfFileName=None, MasterForSlave=None, OrigArgv=None):
         self.master_ip = MasterForSlave
         self.orig_argv = OrigArgv
 
@@ -41,9 +41,9 @@ class BindConfigWriter:
 
         self.bind_dir = BindDir
         self.destination_dir = DestDir
+        self.bind_main_conf_file = MainConfFileName
         self.INTERNAL_DIR = 'zones.internal'
         self.PUBLIC_DIR = 'zones.public'
-        self.BIND_CONF_FILENAME = 'dnssec.conf'
         self.OUT_KEY = 'opendnssec-out'
 
         # Initialize Jinja2
@@ -68,9 +68,9 @@ class BindConfigWriter:
             gid = grp.getgrnam(self.GROUP_NAME).gr_gid
 
         if not self.destination_dir:
-            bind_conf_file = self.BIND_CONF_FILENAME
+            bind_conf_file = self.bind_main_conf_file
         else:
-            bind_conf_file = '%s/%s' % (self.destination_dir, self.BIND_CONF_FILENAME)
+            bind_conf_file = '%s/%s' % (self.destination_dir, self.bind_main_conf_file)
 
         if out_key_file:
             template = self.j2_env.get_template(self.template_config_dual_view)
@@ -117,6 +117,14 @@ class BindConfigWriter:
         else:
             bind_conf_file = '%s/%s' % (self.destination_dir, conf_out_filename)
 
+        # Parse the key file name for possible key name
+        if not key_name:
+            match = re.search(r'^K(.+)\.\+\d{3}\+\d+\.', os.path.basename(key_file))
+            if not match:
+                raise ValueError("Need TSIG key name for file %s." % key_file)
+
+            key_name = match.group(1)
+
         # Read given TSIG private key file and parse needed information for Bind configuration.
         key_algorithm = None
         key_secret = None
@@ -150,7 +158,7 @@ class BindConfigWriter:
         if BindConfigWriter.DO_CHOWN:
             os.chown(bind_conf_file, uid, gid)
 
-        return bind_conf_file
+        return bind_conf_file, key_name
 
     def create_slave_bind_conf(self, zones):
         if BindConfigWriter.DO_CHOWN:
@@ -160,11 +168,11 @@ class BindConfigWriter:
         if not self.destination_dir:
             internal_dir = self.INTERNAL_DIR
             public_dir = self.PUBLIC_DIR
-            bind_conf_file = self.BIND_CONF_FILENAME
+            bind_conf_file = self.bind_main_conf_file
         else:
             internal_dir = '%s/%s' % (self.destination_dir, self.INTERNAL_DIR)
             public_dir = '%s/%s' % (self.destination_dir, self.PUBLIC_DIR)
-            bind_conf_file = '%s/%s' % (self.destination_dir, self.BIND_CONF_FILENAME)
+            bind_conf_file = '%s/%s' % (self.destination_dir, self.bind_main_conf_file)
 
         template = self.j2_env.get_template(self.template_config_plain)
         templ_zones = []

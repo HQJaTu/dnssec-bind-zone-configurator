@@ -5,6 +5,6 @@ zone "{{ zone }}" {
     file "slaves/{{ zone_file }}";
 
     masters {
-        {{ dns_ip }} port {{ dns_port }} key {{ signerd_in_key }};
+        {{ dns_ip }} port {{ dns_port }} key "{{ signerd_in_key }}";
     };
 };
