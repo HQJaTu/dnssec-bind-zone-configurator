@@ -18,7 +18,7 @@ def main():
     parser.add_argument('--bind-conf-file-name', metavar='BIND-ZONES-INCLUDE-CONFIG-FILE',
                         default="zones-include.conf",
                         help='Bind configuration file to be included for all zones.')
-    parser.add_argument('--rndc-reload', '-r', metavar='RELOAD-BIND',
+    parser.add_argument('--rndc-reload', '-r', action="store_true",
                         help='After all is done ok, run rndc reload to update Bind')
     parser.add_argument('zone_configuration', metavar='ZONES-YAML-file',
                         help='The YAML-file containing DNS zones')
